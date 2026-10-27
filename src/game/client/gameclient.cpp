@@ -530,7 +530,7 @@ void CGameClient::OnUpdate()
         {
             s_AfReg = true;
             Console()->Register("af", "?i[mode]", CFGFLAG_CLIENT, +[](IConsole::IResult *pR, void *) {
-                static const int s_AfM[5][4] = {{0,0,0,0},{1,50,4,1},{1,70,5,1},{1,100,7,1},{1,140,9,1}};
+                static const int s_AfM[5][4] = {{0,0,0,0},{1,40,4,1},{1,60,5,1},{1,90,7,1},{1,130,9,1}};
                 if(pR->NumArguments() == 0)
                 {
                     log_info("af", "0=off 1=discret 2=equilibre 3=fort 4=max");
@@ -562,7 +562,7 @@ void CGameClient::OnUpdate()
             const CCharacterCore &AfP = m_aClients[AfId].m_Predicted;
             CNetObj_PlayerInput &AfIn = m_Controls.m_aInputData[g_Config.m_ClDummy];
             bool AfGo = false, AfRight = false;
-            float AfNear = 100000.0f;
+            float AfNearL = 100000.0f, AfNearR = 100000.0f;
             const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
             const int AfCy = (int)(AfP.m_Pos.y / 32.0f);
 
@@ -590,15 +590,31 @@ void CGameClient::OnUpdate()
                             (AfTx * 32.0f - (AfP.m_Pos.x + 14.0f)) :
                             (AfTx * 32.0f + 32.0f - (AfP.m_Pos.x - 14.0f));
                         const float AfA = AfGap < 0.0f ? -AfGap : AfGap;
-                        if(AfA < AfNear)
+                        if(AfTileRight)
                         {
-                            AfNear = AfA;
-                            AfRight = AfTileRight;
+                            if(AfA < AfNearR)
+                                AfNearR = AfA;
+                        }
+                        else
+                        {
+                            if(AfA < AfNearL)
+                                AfNearL = AfA;
                         }
                     }
                 }
-                const bool AfAway = AfRight ? AfP.m_Vel.x < -0.5f : AfP.m_Vel.x > 0.5f;
-                if(AfNear <= (float)g_Config.m_ClAfDist && !AfAway)
+                const bool AfPushL = AfNearR <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x > -0.5f;
+                const bool AfPushR = AfNearL <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x < 0.5f;
+                if(AfPushL)
+                {
+                    AfGo = true;
+                    AfRight = true;
+                }
+                else if(AfPushR)
+                {
+                    AfGo = true;
+                    AfRight = false;
+                }
+                if(AfGo)
                     AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
             }
 
@@ -606,16 +622,9 @@ void CGameClient::OnUpdate()
             if(time_get() - s_AfLast > time_freq() / 2)
             {
                 s_AfLast = time_get();
-                char aRow[64] = "";
-                for(int AfD = -2; AfD <= 2; AfD++)
-                {
-                    char aOne[8];
-                    str_format(aOne, sizeof(aOne), "%d,", Collision()->GetTileIndex(Collision()->GetPureMapIndex((AfCx + AfD) * 32.0f + 16.0f, AfP.m_Pos.y)));
-                    str_append(aRow, aOne);
-                }
-                log_info("af", "dbg claf=%d dist=%d fz=%d pos=%.0f,%.0f tile=%d,%d row=%s near=%.0f go=%d right=%d vel=%.1f",
+                log_info("af", "dbg claf=%d dist=%d fz=%d pos=%.0f,%.0f tile=%d,%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f",
                     g_Config.m_ClAf, g_Config.m_ClAfDist, m_aClients[AfId].m_FreezeEnd, AfP.m_Pos.x, AfP.m_Pos.y, AfCx, AfCy,
-                    aRow, AfNear, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
+                    AfNearL, AfNearR, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
             }
 
             if(AfGo && g_Config.m_ClAf)

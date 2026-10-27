@@ -28,6 +28,7 @@ CControls::CControls()
 	std::fill(std::begin(m_aMousePosOnAction), std::end(m_aMousePosOnAction), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aTargetPos), std::end(m_aTargetPos), vec2(0.0f, 0.0f));
 	std::fill(std::begin(m_aMouseInputType), std::end(m_aMouseInputType), EMouseInputType::ABSOLUTE);
+	std::fill(std::begin(m_aDirectionOverride), std::end(m_aDirectionOverride), 0);
 }
 
 void CControls::OnReset()
@@ -39,6 +40,8 @@ void CControls::OnReset()
 		AmmoCount = 0;
 
 	m_LastSendTime = 0;
+
+	std::fill(std::begin(m_aDirectionOverride), std::end(m_aDirectionOverride), 0);
 }
 
 void CControls::ResetInput(int Dummy)
@@ -289,6 +292,9 @@ int CControls::SnapInput(int *pData)
 		if(!m_aInputDirectionLeft[g_Config.m_ClDummy] && m_aInputDirectionRight[g_Config.m_ClDummy])
 			m_aInputData[g_Config.m_ClDummy].m_Direction = 1;
 
+		if(m_aDirectionOverride[g_Config.m_ClDummy] != 0)
+			m_aInputData[g_Config.m_ClDummy].m_Direction = m_aDirectionOverride[g_Config.m_ClDummy];
+
 		// dummy copy moves
 		if(g_Config.m_ClDummyCopyMoves)
 		{
@@ -524,6 +530,9 @@ bool CControls::CheckNewInput()
 				TestInput.m_Direction = -1;
 			if(!m_aInputDirectionLeft[Dummy] && m_aInputDirectionRight[Dummy])
 				TestInput.m_Direction = 1;
+
+			if(m_aDirectionOverride[Dummy] != 0)
+				TestInput.m_Direction = m_aDirectionOverride[Dummy];
 		}
 
 		if(m_aFastInput[Dummy].m_Direction != TestInput.m_Direction)

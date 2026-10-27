@@ -525,8 +525,6 @@ void CGameClient::OnUpdate()
 		// ===== cl_af : anti-freeze horizontal + menu =====
     {
         static bool s_AfReg = false;
-        static int s_AfPh = 0, s_AfTm = 0;
-        static int s_AfDbg = 0;
 
         if(!s_AfReg && Console())
         {
@@ -536,9 +534,9 @@ void CGameClient::OnUpdate()
                 if(pR->NumArguments() == 0)
                 {
                     log_info("af", "0=off 1=discret 2=equilibre 3=fort 4=max");
-                    log_info("af", "actuel : %s | dist %d | on %d | off %d | hook %s",
-                        g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist, g_Config.m_ClAfOn,
-                        g_Config.m_ClAfOff, g_Config.m_ClAfHook ? "prudent" : "agressif");
+                    log_info("af", "actuel : %s | dist %d | hook %s",
+                        g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist,
+                        g_Config.m_ClAfHook ? "prudent" : "agressif");
                     return;
                 }
                 const int AfM = pR->GetInteger(0);
@@ -565,19 +563,24 @@ void CGameClient::OnUpdate()
             CNetObj_PlayerInput &AfIn = m_Controls.m_aInputData[g_Config.m_ClDummy];
             bool AfGo = false, AfRight = false;
             float AfNear = 100000.0f;
+            const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
+            const int AfCy = (int)(AfP.m_Pos.y / 32.0f);
 
             if(m_aClients[AfId].m_FreezeEnd == 0 && !AfP.m_DeepFrozen && !AfP.m_LiveFrozen)
             {
-                const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
-                const int AfCy = (int)(AfP.m_Pos.y / 32.0f);
                 for(int AfDx = -5; AfDx <= 5; AfDx++)
                 {
                     for(int AfDy = -2; AfDy <= 2; AfDy++)
                     {
                         const int AfTx = AfCx + AfDx;
                         const int AfTy = AfCy + AfDy;
-                        const int AfT = Collision()->GetTileIndex(Collision()->GetPureMapIndex(AfTx * 32.0f + 16.0f, AfTy * 32.0f + 16.0f));
-                        if(AfT != TILE_FREEZE && AfT != TILE_DFREEZE && (AfT < TILE_LFREEZE || AfT > TILE_LFREEZE + 1))
+                        const int AfIdx = Collision()->GetPureMapIndex(AfTx * 32.0f + 16.0f, AfTy * 32.0f + 16.0f);
+                        const int AfT = Collision()->GetTileIndex(AfIdx);
+                        const int AfTf = Collision()->GetFrontTileIndex(AfIdx);
+                        const bool AfFreeze =
+                            AfT == TILE_FREEZE || AfT == TILE_DFREEZE || (AfT >= TILE_LFREEZE && AfT <= TILE_LFREEZE + 1) ||
+                            AfTf == TILE_FREEZE || AfTf == TILE_DFREEZE || (AfTf >= TILE_LFREEZE && AfTf <= TILE_LFREEZE + 1);
+                        if(!AfFreeze)
                             continue;
                         const float AfTop = AfTy * 32.0f;
                         if(AfP.m_Pos.y + 14.0f < AfTop || AfP.m_Pos.y - 14.0f > AfTop + 32.0f)
@@ -597,32 +600,18 @@ void CGameClient::OnUpdate()
                     AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
             }
 
-            if(++s_AfDbg >= 200)
-            {
-                s_AfDbg = 0;
-                log_info("af", "dbg claf=%d dist=%d near=%.0f go=%d right=%d vel=%.1f ph=%d",
-                    g_Config.m_ClAf, g_Config.m_ClAfDist, AfNear, (int)AfGo, (int)AfRight, AfP.m_Vel.x, s_AfPh);
-            }
+            static int s_AfDbg = 0;
+            s_AfDbg++;
+            if(AfNear < 500.0f ? (s_AfDbg % 25 == 0) : (s_AfDbg % 500 == 0))
+                log_info("af", "dbg claf=%d dist=%d pos=%.0f,%.0f tile=%d,%d near=%.0f go=%d right=%d vel=%.1f",
+                    g_Config.m_ClAf, g_Config.m_ClAfDist, AfP.m_Pos.x, AfP.m_Pos.y, AfCx, AfCy,
+                    AfNear, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
 
             if(AfGo && g_Config.m_ClAf)
-            {
-                if(s_AfTm <= 0)
-                {
-                    s_AfPh = 1 - s_AfPh;
-                    s_AfTm = s_AfPh ? g_Config.m_ClAfOn : g_Config.m_ClAfOff;
-                }
-                if(s_AfPh)
-                    AfIn.m_Direction = AfRight ? -1 : 1;
-                s_AfTm--;
-            }
-            else
-            {
-                s_AfPh = 0;
-                s_AfTm = 0;
-            }
+                AfIn.m_Direction = AfRight ? -1 : 1;
         }
     }
-    // ===== fin cl_af =====	
+    // ===== fin cl_af =====
 	}
 
 

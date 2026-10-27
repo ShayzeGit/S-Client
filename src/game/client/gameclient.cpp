@@ -525,15 +525,17 @@ void CGameClient::OnUpdate()
 		// ===== cl_af : anti-freeze horizontal + menu =====
     {
         static bool s_AfReg = false;
+        static int s_AfRealL = 0, s_AfRealR = 0;
+        static int s_AfWroteL = -1, s_AfWroteR = -1;
 
         if(!s_AfReg && Console())
         {
             s_AfReg = true;
             Console()->Register("af", "?i[mode]", CFGFLAG_CLIENT, +[](IConsole::IResult *pR, void *) {
-                static const int s_AfM[5][4] = {{0,0,0,0},{1,40,4,1},{1,60,5,1},{1,90,7,1},{1,130,9,1}};
+                static const int s_AfM[5][4] = {{0,0,0,0},{1,16,0,0},{1,24,0,0},{1,34,0,0},{1,48,0,0}};
                 if(pR->NumArguments() == 0)
                 {
-                    log_info("af", "0=off 1=discret 2=equilibre 3=fort 4=max");
+                    log_info("af", "0=off 1=leger 2=doux 3=net 4=fort");
                     log_info("af", "actuel : %s | dist %d | hook %s",
                         g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist,
                         g_Config.m_ClAfHook ? "prudent" : "agressif");
@@ -563,6 +565,20 @@ void CGameClient::OnUpdate()
             CNetObj_PlayerInput &AfIn = m_Controls.m_aInputData[g_Config.m_ClDummy];
             int &AfDirL = m_Controls.m_aInputDirectionLeft[g_Config.m_ClDummy];
             int &AfDirR = m_Controls.m_aInputDirectionRight[g_Config.m_ClDummy];
+
+            if(s_AfWroteL < 0)
+            {
+                s_AfRealL = AfDirL;
+                s_AfRealR = AfDirR;
+            }
+            else
+            {
+                if(AfDirL != s_AfWroteL)
+                    s_AfRealL = AfDirL;
+                if(AfDirR != s_AfWroteR)
+                    s_AfRealR = AfDirR;
+            }
+
             bool AfGo = false, AfRight = false;
             float AfNearL = 100000.0f, AfNearR = 100000.0f;
             const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
@@ -570,7 +586,7 @@ void CGameClient::OnUpdate()
 
             if(m_aClients[AfId].m_FreezeEnd == 0 && !AfP.m_DeepFrozen && !AfP.m_LiveFrozen)
             {
-                for(int AfDx = -5; AfDx <= 5; AfDx++)
+                for(int AfDx = -4; AfDx <= 4; AfDx++)
                 {
                     for(int AfDy = -2; AfDy <= 2; AfDy++)
                     {
@@ -589,23 +605,24 @@ void CGameClient::OnUpdate()
                             continue;
                         const bool AfTileRight = AfTx * 32.0f + 16.0f > AfP.m_Pos.x;
                         const float AfGap = AfTileRight ?
-                            (AfTx * 32.0f - (AfP.m_Pos.x + 14.0f)) :
-                            (AfTx * 32.0f + 32.0f - (AfP.m_Pos.x - 14.0f));
-                        const float AfA = AfGap < 0.0f ? -AfGap : AfGap;
+                            (AfTx * 32.0f - AfP.m_Pos.x) :
+                            (AfP.m_Pos.x - (AfTx * 32.0f + 32.0f));
                         if(AfTileRight)
                         {
-                            if(AfA < AfNearR)
-                                AfNearR = AfA;
+                            if(AfGap < AfNearR)
+                                AfNearR = AfGap;
                         }
                         else
                         {
-                            if(AfA < AfNearL)
-                                AfNearL = AfA;
+                            if(AfGap < AfNearL)
+                                AfNearL = AfGap;
                         }
                     }
                 }
-                const bool AfPushL = AfNearR <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x > -0.5f;
-                const bool AfPushR = AfNearL <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x < 0.5f;
+                const bool AfUserR = s_AfRealR != 0 && s_AfRealL == 0;
+                const bool AfUserL = s_AfRealL != 0 && s_AfRealR == 0;
+                const bool AfPushL = AfNearR <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x > -0.2f && (AfUserR || AfP.m_Vel.x > 0.3f);
+                const bool AfPushR = AfNearL <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x < 0.2f && (AfUserL || AfP.m_Vel.x < -0.3f);
                 if(AfPushL)
                 {
                     AfGo = true;
@@ -619,23 +636,7 @@ void CGameClient::OnUpdate()
                 if(AfGo)
                     AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
             }
-
-            static int s_AfRealL = 0, s_AfRealR = 0;
-            static int s_AfWroteL = -1, s_AfWroteR = -1;
-
-            if(s_AfWroteL < 0)
-            {
-                s_AfRealL = AfDirL;
-                s_AfRealR = AfDirR;
-            }
-            else
-            {
-                if(AfDirL != s_AfWroteL)
-                    s_AfRealL = AfDirL;
-                if(AfDirR != s_AfWroteR)
-                    s_AfRealR = AfDirR;
-            }
-
+			
             if(AfGo && g_Config.m_ClAf)
             {
                 AfDirL = AfRight ? 1 : 0;
@@ -656,9 +657,9 @@ void CGameClient::OnUpdate()
             if(time_get() - s_AfLast > time_freq() / 2)
             {
                 s_AfLast = time_get();
-                log_info("af", "dbg claf=%d dist=%d fz=%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f dir=%d,%d",
+                log_info("af", "dbg claf=%d dist=%d fz=%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f",
                     g_Config.m_ClAf, g_Config.m_ClAfDist, m_aClients[AfId].m_FreezeEnd,
-                    AfNearL, AfNearR, (int)AfGo, (int)AfRight, AfP.m_Vel.x, AfDirL, AfDirR);
+                    AfNearL, AfNearR, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
             }
         }
     }

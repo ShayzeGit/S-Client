@@ -522,7 +522,101 @@ void CGameClient::OnUpdate()
 	{
 		pComponent->OnUpdate();
 	}
-}
+		// ===== cl_af : anti-freeze horizontal + menu =====
+    {
+        static bool s_AfReg = false;
+        static int s_AfPh = 0, s_AfTm = 0;
+
+        if(!s_AfReg && Console())
+        {
+            s_AfReg = true;
+            Console()->Register("af", "?i[mode]", CFGFLAG_CLIENT, +[](IConsole::IResult *pR, void *) {
+                static const int s_AfM[5][4] = {{0,0,0,0},{1,60,2,3},{1,90,3,2},{1,140,5,1},{1,190,7,0}};
+                if(pR->NumArguments() == 0)
+                {
+                    log_info("af", "0=off 1=discret 2=equilibre 3=fort 4=max");
+                    log_info("af", "actuel : %s | dist %d | on %d | off %d | hook %s",
+                        g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist, g_Config.m_ClAfOn,
+                        g_Config.m_ClAfOff, g_Config.m_ClAfHook ? "prudent" : "agressif");
+                    return;
+                }
+                const int AfM = pR->GetInteger(0);
+                if(AfM < 0 || AfM > 4) { log_info("af", "mode entre 0 et 4"); return; }
+                g_Config.m_ClAf = s_AfM[AfM][0];
+                if(AfM > 0)
+                {
+                    g_Config.m_ClAfDist = s_AfM[AfM][1];
+                    g_Config.m_ClAfOn = s_AfM[AfM][2];
+                    g_Config.m_ClAfOff = s_AfM[AfM][3];
+                }
+                log_info("af", "mode %d applique", AfM);
+            }, nullptr, "Anti-freeze : menu ou mode 0-4");
+            Console()->Register("af_hook", "", CFGFLAG_CLIENT, +[](IConsole::IResult *, void *) {
+                g_Config.m_ClAfHook = g_Config.m_ClAfHook ? 0 : 1;
+                log_info("af", "hook : %s", g_Config.m_ClAfHook ? "prudent" : "agressif");
+            }, nullptr, "Anti-freeze : hook prudent / agressif");
+        }
+
+        const int AfId = m_aLocalIds[g_Config.m_ClDummy];
+        if(AfId >= 0 && Client()->State() == IClient::STATE_ONLINE)
+        {
+            const CCharacterCore &AfP = m_aClients[AfId].m_Predicted;
+            CNetObj_PlayerInput &AfIn = m_Controls.m_aInputData[g_Config.m_ClDummy];
+            bool AfGo = false, AfRight = false;
+
+            if(m_aClients[AfId].m_FreezeEnd == 0 && !AfP.m_DeepFrozen && !AfP.m_LiveFrozen)
+            {
+                const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
+                const int AfCy = (int)(AfP.m_Pos.y / 32.0f);
+                float AfNear = 100000.0f;
+                for(int AfDx = -3; AfDx <= 3; AfDx++)
+                {
+                    for(int AfDy = -2; AfDy <= 2; AfDy++)
+                    {
+                        const int AfTx = AfCx + AfDx;
+                        const int AfTy = AfCy + AfDy;
+                        const int AfT = Collision()->GetTile(AfTx, AfTy);
+                        if(AfT != TILE_FREEZE && AfT != TILE_DFREEZE && AfT != TILE_LFREEZE)
+                            continue;
+                        const float AfTop = AfTy * 32.0f;
+                        if(AfP.m_Pos.y + 14.0f <= AfTop || AfP.m_Pos.y - 14.0f >= AfTop + 32.0f)
+                            continue;
+                        const float AfG = (AfTx * 32.0f + 16.0f > AfP.m_Pos.x) ?
+                            (AfTx * 32.0f - (AfP.m_Pos.x + 14.0f)) :
+                            (AfTx * 32.0f + 32.0f - (AfP.m_Pos.x - 14.0f));
+                        const float AfA = AfG < 0.0f ? -AfG : AfG;
+                        if(AfA < AfNear)
+                        {
+                            AfNear = AfA;
+                            AfRight = AfG > 0.0f;
+                        }
+                    }
+                }
+                if(AfNear <= (float)g_Config.m_ClAfDist && (AfRight ? AfP.m_Vel.x > 0.05f : AfP.m_Vel.x < -0.05f))
+                    AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
+            }
+
+            if(AfGo && g_Config.m_ClAf)
+            {
+                if(s_AfTm <= 0)
+                {
+                    s_AfPh = 1 - s_AfPh;
+                    s_AfTm = s_AfPh ? g_Config.m_ClAfOn : g_Config.m_ClAfOff;
+                }
+                if(s_AfPh)
+                    AfIn.m_Direction = AfRight ? -1 : 1;
+                s_AfTm--;
+            }
+            else
+            {
+                s_AfPh = 0;
+                s_AfTm = 0;
+            }
+        }
+    }
+    // ===== fin cl_af =====	
+	}
+
 
 void CGameClient::OnInput(const IInput::CEvent &Event)
 {

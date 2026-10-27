@@ -799,3 +799,10 @@ MACRO_CONFIG_INT(GfxRenderThreadCount, gfx_render_thread_count, 3, 0, 0, CFGFLAG
 MACRO_CONFIG_INT(GfxDriverIsBlocked, gfx_driver_is_blocked, 0, 0, 1, CFGFLAG_SAVE | CFGFLAG_CLIENT, "If 1, the current driver is in a blocked error state.")
 
 MACRO_CONFIG_INT(ClVideoRecorderFPS, cl_video_recorder_fps, 60, 1, 1000, CFGFLAG_SAVE | CFGFLAG_CLIENT, "At which FPS the videorecorder should record demos.")
+
+// === assistance anti-freeze horizontale (cl_af) ===
+MACRO_CONFIG_INT(ClAf, cl_af, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Assistance anti-freeze horizontale")
+MACRO_CONFIG_INT(ClAfDist, cl_af_dist, 90, 10, 220, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Distance de declenchement en unites")
+MACRO_CONFIG_INT(ClAfOn, cl_af_on, 3, 1, 8, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Ticks de contre-input par pulse")
+MACRO_CONFIG_INT(ClAfOff, cl_af_off, 2, 0, 8, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Ticks de repos entre deux pulses")
+MACRO_CONFIG_INT(ClAfHook, cl_af_hook, 1, 0, 1, CFGFLAG_CLIENT | CFGFLAG_SAVE, "Pendant un hook accroche : 1 = ne pas toucher, 0 = agir")

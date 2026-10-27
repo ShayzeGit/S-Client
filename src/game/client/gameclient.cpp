@@ -561,6 +561,8 @@ void CGameClient::OnUpdate()
         {
             const CCharacterCore &AfP = m_aClients[AfId].m_Predicted;
             CNetObj_PlayerInput &AfIn = m_Controls.m_aInputData[g_Config.m_ClDummy];
+            int &AfDirL = m_Controls.m_aInputDirectionLeft[g_Config.m_ClDummy];
+            int &AfDirR = m_Controls.m_aInputDirectionRight[g_Config.m_ClDummy];
             bool AfGo = false, AfRight = false;
             float AfNearL = 100000.0f, AfNearR = 100000.0f;
             const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
@@ -618,17 +620,46 @@ void CGameClient::OnUpdate()
                     AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
             }
 
+            static int s_AfRealL = 0, s_AfRealR = 0;
+            static int s_AfWroteL = -1, s_AfWroteR = -1;
+
+            if(s_AfWroteL < 0)
+            {
+                s_AfRealL = AfDirL;
+                s_AfRealR = AfDirR;
+            }
+            else
+            {
+                if(AfDirL != s_AfWroteL)
+                    s_AfRealL = AfDirL;
+                if(AfDirR != s_AfWroteR)
+                    s_AfRealR = AfDirR;
+            }
+
+            if(AfGo && g_Config.m_ClAf)
+            {
+                AfDirL = AfRight ? 1 : 0;
+                AfDirR = AfRight ? 0 : 1;
+                AfIn.m_Direction = AfRight ? -1 : 1;
+                s_AfWroteL = AfDirL;
+                s_AfWroteR = AfDirR;
+            }
+            else
+            {
+                AfDirL = s_AfRealL;
+                AfDirR = s_AfRealR;
+                s_AfWroteL = -1;
+                s_AfWroteR = -1;
+            }
+
             static int64_t s_AfLast = 0;
             if(time_get() - s_AfLast > time_freq() / 2)
             {
                 s_AfLast = time_get();
-                log_info("af", "dbg claf=%d dist=%d fz=%d pos=%.0f,%.0f tile=%d,%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f",
-                    g_Config.m_ClAf, g_Config.m_ClAfDist, m_aClients[AfId].m_FreezeEnd, AfP.m_Pos.x, AfP.m_Pos.y, AfCx, AfCy,
-                    AfNearL, AfNearR, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
+                log_info("af", "dbg claf=%d dist=%d fz=%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f dir=%d,%d",
+                    g_Config.m_ClAf, g_Config.m_ClAfDist, m_aClients[AfId].m_FreezeEnd,
+                    AfNearL, AfNearR, (int)AfGo, (int)AfRight, AfP.m_Vel.x, AfDirL, AfDirR);
             }
-
-            if(AfGo && g_Config.m_ClAf)
-                AfIn.m_Direction = AfRight ? -1 : 1;
         }
     }
     // ===== fin cl_af =====

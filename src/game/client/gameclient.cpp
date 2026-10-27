@@ -600,12 +600,21 @@ void CGameClient::OnUpdate()
                     AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
             }
 
-            static int s_AfDbg = 0;
-            s_AfDbg++;
-            if(AfNear < 500.0f ? (s_AfDbg % 25 == 0) : (s_AfDbg % 500 == 0))
-                log_info("af", "dbg claf=%d dist=%d pos=%.0f,%.0f tile=%d,%d near=%.0f go=%d right=%d vel=%.1f",
+            static int64_t s_AfLast = 0;
+            if(time_get() - s_AfLast > time_freq() / 2)
+            {
+                s_AfLast = time_get();
+                char aRow[64] = "";
+                for(int AfD = -2; AfD <= 2; AfD++)
+                {
+                    char aOne[8];
+                    str_format(aOne, sizeof(aOne), "%d,", Collision()->GetTileIndex(Collision()->GetPureMapIndex((AfCx + AfD) * 32.0f + 16.0f, AfP.m_Pos.y)));
+                    str_append(aRow, aOne);
+                }
+                log_info("af", "dbg claf=%d dist=%d pos=%.0f,%.0f tile=%d,%d row=%s near=%.0f go=%d right=%d vel=%.1f",
                     g_Config.m_ClAf, g_Config.m_ClAfDist, AfP.m_Pos.x, AfP.m_Pos.y, AfCx, AfCy,
-                    AfNear, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
+                    aRow, AfNear, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
+            }
 
             if(AfGo && g_Config.m_ClAf)
                 AfIn.m_Direction = AfRight ? -1 : 1;

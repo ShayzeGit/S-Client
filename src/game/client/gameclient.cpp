@@ -531,7 +531,7 @@ void CGameClient::OnUpdate()
         {
             s_AfReg = true;
             Console()->Register("af", "?i[mode]", CFGFLAG_CLIENT, +[](IConsole::IResult *pR, void *) {
-                static const int s_AfM[5][4] = {{0,0,0,0},{1,60,2,3},{1,90,3,2},{1,140,5,1},{1,190,7,0}};
+                static const int s_AfM[5][4] = {{0,0,0,0},{1,50,4,1},{1,70,5,1},{1,100,7,1},{1,140,9,1}};
                 if(pR->NumArguments() == 0)
                 {
                     log_info("af", "0=off 1=discret 2=equilibre 3=fort 4=max");

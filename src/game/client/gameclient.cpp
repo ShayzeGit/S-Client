@@ -585,18 +585,20 @@ void CGameClient::OnUpdate()
                         const float AfTop = AfTy * 32.0f;
                         if(AfP.m_Pos.y + 14.0f < AfTop || AfP.m_Pos.y - 14.0f > AfTop + 32.0f)
                             continue;
-                        const float AfG = (AfTx * 32.0f + 16.0f > AfP.m_Pos.x) ?
+                        const bool AfTileRight = AfTx * 32.0f + 16.0f > AfP.m_Pos.x;
+                        const float AfGap = AfTileRight ?
                             (AfTx * 32.0f - (AfP.m_Pos.x + 14.0f)) :
                             (AfTx * 32.0f + 32.0f - (AfP.m_Pos.x - 14.0f));
-                        const float AfA = AfG < 0.0f ? -AfG : AfG;
+                        const float AfA = AfGap < 0.0f ? -AfGap : AfGap;
                         if(AfA < AfNear)
                         {
                             AfNear = AfA;
-                            AfRight = AfG > 0.0f;
+                            AfRight = AfTileRight;
                         }
                     }
                 }
-                if(AfNear <= (float)g_Config.m_ClAfDist && (AfRight ? AfP.m_Vel.x > 0.05f : AfP.m_Vel.x < -0.05f))
+                const bool AfAway = AfRight ? AfP.m_Vel.x < -0.5f : AfP.m_Vel.x > 0.5f;
+                if(AfNear <= (float)g_Config.m_ClAfDist && !AfAway)
                     AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
             }
 
@@ -611,8 +613,8 @@ void CGameClient::OnUpdate()
                     str_format(aOne, sizeof(aOne), "%d,", Collision()->GetTileIndex(Collision()->GetPureMapIndex((AfCx + AfD) * 32.0f + 16.0f, AfP.m_Pos.y)));
                     str_append(aRow, aOne);
                 }
-                log_info("af", "dbg claf=%d dist=%d pos=%.0f,%.0f tile=%d,%d row=%s near=%.0f go=%d right=%d vel=%.1f",
-                    g_Config.m_ClAf, g_Config.m_ClAfDist, AfP.m_Pos.x, AfP.m_Pos.y, AfCx, AfCy,
+                log_info("af", "dbg claf=%d dist=%d fz=%d pos=%.0f,%.0f tile=%d,%d row=%s near=%.0f go=%d right=%d vel=%.1f",
+                    g_Config.m_ClAf, g_Config.m_ClAfDist, m_aClients[AfId].m_FreezeEnd, AfP.m_Pos.x, AfP.m_Pos.y, AfCx, AfCy,
                     aRow, AfNear, (int)AfGo, (int)AfRight, AfP.m_Vel.x);
             }
 

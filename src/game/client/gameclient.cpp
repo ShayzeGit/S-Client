@@ -533,24 +533,20 @@ void CGameClient::OnUpdate()
         {
             s_AfReg = true;
             Console()->Register("af", "?i[mode]", CFGFLAG_CLIENT, +[](IConsole::IResult *pR, void *) {
-                static const int s_AfM[5][4] = {{0,0,0,0},{1,12,1,1},{1,18,2,1},{1,26,3,1},{1,36,4,1}};
+                static const int s_AfM[5][2] = {{0,0},{1,0},{1,10},{1,22},{1,36}};
                 if(pR->NumArguments() == 0)
                 {
-                    log_info("af", "0=off 1=tres leger 2=leger 3=moyen 4=net");
-                    log_info("af", "actuel : %s | dist %d | on %d | off %d | hook %s",
-                        g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist, g_Config.m_ClAfOn,
-                        g_Config.m_ClAfOff, g_Config.m_ClAfHook ? "prudent" : "agressif");
+                    log_info("af", "0=off 1=mini 2=leger 3=moyen 4=large");
+                    log_info("af", "actuel : %s | dist mini %d | hook %s",
+                        g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist,
+                        g_Config.m_ClAfHook ? "prudent" : "agressif");
                     return;
                 }
                 const int AfM = pR->GetInteger(0);
                 if(AfM < 0 || AfM > 4) { log_info("af", "mode entre 0 et 4"); return; }
                 g_Config.m_ClAf = s_AfM[AfM][0];
                 if(AfM > 0)
-                {
                     g_Config.m_ClAfDist = s_AfM[AfM][1];
-                    g_Config.m_ClAfOn = s_AfM[AfM][2];
-                    g_Config.m_ClAfOff = s_AfM[AfM][3];
-                }
                 log_info("af", "mode %d applique", AfM);
             }, nullptr, "Anti-freeze : menu ou mode 0-4");
             Console()->Register("af_hook", "", CFGFLAG_CLIENT, +[](IConsole::IResult *, void *) {
@@ -560,7 +556,7 @@ void CGameClient::OnUpdate()
         }
 
         const int AfId = m_aLocalIds[g_Config.m_ClDummy];
-        if(AfId >= 0 && Client()->State() == IClient::STATE_ONLINE)
+        if(AfId >= 0 && Client()->State() == IClient::STATE_ONLINE && m_Snap.m_pLocalCharacter)
         {
             const CCharacterCore &AfP = m_aClients[AfId].m_Predicted;
             const int AfTick = Client()->GameTick(g_Config.m_ClDummy);
@@ -573,48 +569,57 @@ void CGameClient::OnUpdate()
                 s_AfNearL = 100000.0f;
                 s_AfNearR = 100000.0f;
 
-                const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
-                const int AfCy = (int)(AfP.m_Pos.y / 32.0f);
-
                 if(m_aClients[AfId].m_FreezeEnd == 0 && !AfP.m_DeepFrozen && !AfP.m_LiveFrozen)
                 {
+                    // DDNet ne gele que si le CENTRE du tee croise une tuile freeze : seules
+                    // les tuiles de la ligne du centre sont des obstacles horizontaux.
+                    const int AfCx = (int)(AfP.m_Pos.x / 32.0f);
+                    const int AfCy = (int)(AfP.m_Pos.y / 32.0f);
+
                     for(int AfDx = -4; AfDx <= 4; AfDx++)
                     {
-                        for(int AfDy = -1; AfDy <= 1; AfDy++)
+                        const int AfTx = AfCx + AfDx;
+                        const int AfIdx = Collision()->GetPureMapIndex(AfTx * 32.0f + 16.0f, AfCy * 32.0f + 16.0f);
+                        const int AfT = Collision()->GetTileIndex(AfIdx);
+                        const int AfTf = Collision()->GetFrontTileIndex(AfIdx);
+                        const bool AfFreeze =
+                            AfT == TILE_FREEZE || AfT == TILE_DFREEZE || (AfT >= TILE_LFREEZE && AfT <= TILE_LFREEZE + 1) ||
+                            AfTf == TILE_FREEZE || AfTf == TILE_DFREEZE || (AfTf >= TILE_LFREEZE && AfTf <= TILE_LFREEZE + 1);
+                        if(!AfFreeze)
+                            continue;
+
+                        // distance du centre au bord de la tuile, strictement devant
+                        const bool AfTileRight = AfTx * 32.0f + 16.0f > AfP.m_Pos.x;
+                        const float AfGap = AfTileRight ?
+                            (AfTx * 32.0f - AfP.m_Pos.x) :
+                            (AfP.m_Pos.x - (AfTx * 32.0f + 32.0f));
+                        if(AfGap <= 0.0f)
+                            continue;
+
+                        if(AfTileRight)
                         {
-                            const int AfTx = AfCx + AfDx;
-                            const int AfTy = AfCy + AfDy;
-                            const int AfIdx = Collision()->GetPureMapIndex(AfTx * 32.0f + 16.0f, AfTy * 32.0f + 16.0f);
-                            const int AfT = Collision()->GetTileIndex(AfIdx);
-                            const int AfTf = Collision()->GetFrontTileIndex(AfIdx);
-                            const bool AfFreeze =
-                                AfT == TILE_FREEZE || AfT == TILE_DFREEZE || (AfT >= TILE_LFREEZE && AfT <= TILE_LFREEZE + 1) ||
-                                AfTf == TILE_FREEZE || AfTf == TILE_DFREEZE || (AfTf >= TILE_LFREEZE && AfTf <= TILE_LFREEZE + 1);
-                            if(!AfFreeze)
-                                continue;
-                            const float AfTop = AfTy * 32.0f;
-                            if(AfP.m_Pos.y + 14.0f <= AfTop || AfP.m_Pos.y - 14.0f >= AfTop + 32.0f)
-                                continue;
-                            const bool AfTileRight = AfTx * 32.0f + 16.0f > AfP.m_Pos.x;
-                            const float AfGap = AfTileRight ?
-                                (AfTx * 32.0f - AfP.m_Pos.x) :
-                                (AfP.m_Pos.x - (AfTx * 32.0f + 32.0f));
-                            if(AfTileRight)
-                            {
-                                if(AfGap < s_AfNearR)
-                                    s_AfNearR = AfGap;
-                            }
-                            else
-                            {
-                                if(AfGap < s_AfNearL)
-                                    s_AfNearL = AfGap;
-                            }
+                            if(AfGap < s_AfNearR)
+                                s_AfNearR = AfGap;
+                        }
+                        else
+                        {
+                            if(AfGap < s_AfNearL)
+                                s_AfNearL = AfGap;
                         }
                     }
-                    const bool AfUserR = m_Controls.m_aInputDirectionRight[g_Config.m_ClDummy] != 0 && m_Controls.m_aInputDirectionLeft[g_Config.m_ClDummy] == 0;
-                    const bool AfUserL = m_Controls.m_aInputDirectionLeft[g_Config.m_ClDummy] != 0 && m_Controls.m_aInputDirectionRight[g_Config.m_ClDummy] == 0;
-                    const bool AfPushL = s_AfNearR <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x > -0.2f && (AfUserR || AfP.m_Vel.x > 0.3f);
-                    const bool AfPushR = s_AfNearL <= (float)g_Config.m_ClAfDist && AfP.m_Vel.x < 0.2f && (AfUserL || AfP.m_Vel.x < -0.3f);
+
+                    // distance de freinage reelle : 2.0/tick au sol, 0.4/tick en l'air
+                    const bool AfGround = Collision()->IsOnGround(AfP.m_Pos, CCharacterCore::PhysicalSize());
+                    const float AfAccel = AfGround ? 2.0f : 0.4f;
+                    const float AfVx = AfP.m_Vel.x < 0.0f ? -AfP.m_Vel.x : AfP.m_Vel.x;
+                    float AfZone = (AfVx * AfVx) / (2.0f * AfAccel) + 3.0f;
+                    if(AfZone > 96.0f)
+                        AfZone = 96.0f;
+                    if((float)g_Config.m_ClAfDist > AfZone)
+                        AfZone = (float)g_Config.m_ClAfDist;
+
+                    const bool AfPushL = s_AfNearR <= AfZone && AfP.m_Vel.x > 0.0f;
+                    const bool AfPushR = s_AfNearL <= AfZone && AfP.m_Vel.x < 0.0f;
                     if(AfPushL)
                     {
                         s_AfGo = true;
@@ -638,10 +643,13 @@ void CGameClient::OnUpdate()
             if(time_get() - s_AfLast > time_freq() / 2)
             {
                 s_AfLast = time_get();
-                log_info("af", "dbg claf=%d dist=%d on=%d off=%d fz=%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f",
-                    g_Config.m_ClAf, g_Config.m_ClAfDist, g_Config.m_ClAfOn, g_Config.m_ClAfOff,
-                    m_aClients[AfId].m_FreezeEnd, s_AfNearL, s_AfNearR, (int)s_AfGo, (int)s_AfRight, AfP.m_Vel.x);
+                log_info("af", "dbg claf=%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f fz=%d",
+                    g_Config.m_ClAf, s_AfNearL, s_AfNearR, (int)s_AfGo, (int)s_AfRight, AfP.m_Vel.x, m_aClients[AfId].m_FreezeEnd);
             }
+        }
+        else
+        {
+            m_Controls.m_aDirectionOverride[g_Config.m_ClDummy] = 0;
         }
     }
     // ===== fin cl_af =====

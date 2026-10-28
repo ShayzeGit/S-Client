@@ -533,13 +533,13 @@ void CGameClient::OnUpdate()
         {
             s_AfReg = true;
             Console()->Register("af", "?i[mode]", CFGFLAG_CLIENT, +[](IConsole::IResult *pR, void *) {
-                static const int s_AfM[5][4] = {{0,0,0,0},{1,16,0,0},{1,24,0,0},{1,34,0,0},{1,48,0,0}};
+                static const int s_AfM[5][4] = {{0,0,0,0},{1,12,1,1},{1,18,2,1},{1,26,3,1},{1,36,4,1}};
                 if(pR->NumArguments() == 0)
                 {
-                    log_info("af", "0=off 1=leger 2=doux 3=net 4=fort");
-                    log_info("af", "actuel : %s | dist %d | hook %s",
-                        g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist,
-                        g_Config.m_ClAfHook ? "prudent" : "agressif");
+                    log_info("af", "0=off 1=tres leger 2=leger 3=moyen 4=net");
+                    log_info("af", "actuel : %s | dist %d | on %d | off %d | hook %s",
+                        g_Config.m_ClAf ? "ON" : "OFF", g_Config.m_ClAfDist, g_Config.m_ClAfOn,
+                        g_Config.m_ClAfOff, g_Config.m_ClAfHook ? "prudent" : "agressif");
                     return;
                 }
                 const int AfM = pR->GetInteger(0);
@@ -580,7 +580,7 @@ void CGameClient::OnUpdate()
                 {
                     for(int AfDx = -4; AfDx <= 4; AfDx++)
                     {
-                        for(int AfDy = -2; AfDy <= 2; AfDy++)
+                        for(int AfDy = -1; AfDy <= 1; AfDy++)
                         {
                             const int AfTx = AfCx + AfDx;
                             const int AfTy = AfCy + AfDy;
@@ -593,7 +593,7 @@ void CGameClient::OnUpdate()
                             if(!AfFreeze)
                                 continue;
                             const float AfTop = AfTy * 32.0f;
-                            if(AfP.m_Pos.y + 14.0f < AfTop || AfP.m_Pos.y - 14.0f > AfTop + 32.0f)
+                            if(AfP.m_Pos.y + 14.0f <= AfTop || AfP.m_Pos.y - 14.0f >= AfTop + 32.0f)
                                 continue;
                             const bool AfTileRight = AfTx * 32.0f + 16.0f > AfP.m_Pos.x;
                             const float AfGap = AfTileRight ?
@@ -629,16 +629,18 @@ void CGameClient::OnUpdate()
                         s_AfGo = !(g_Config.m_ClAfHook == 1 && AfP.m_HookState == HOOK_GRABBED);
                 }
 
-                m_Controls.m_aDirectionOverride[g_Config.m_ClDummy] = (s_AfGo && g_Config.m_ClAf) ? (s_AfRight ? -1 : 1) : 0;
+                const int AfPeriod = g_Config.m_ClAfOn + g_Config.m_ClAfOff;
+                const bool AfPulse = AfPeriod <= 1 || (AfTick % AfPeriod) < g_Config.m_ClAfOn;
+                m_Controls.m_aDirectionOverride[g_Config.m_ClDummy] = (s_AfGo && g_Config.m_ClAf && AfPulse) ? (s_AfRight ? -1 : 1) : 0;
             }
 
             static int64_t s_AfLast = 0;
             if(time_get() - s_AfLast > time_freq() / 2)
             {
                 s_AfLast = time_get();
-                log_info("af", "dbg claf=%d dist=%d fz=%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f",
-                    g_Config.m_ClAf, g_Config.m_ClAfDist, m_aClients[AfId].m_FreezeEnd,
-                    s_AfNearL, s_AfNearR, (int)s_AfGo, (int)s_AfRight, AfP.m_Vel.x);
+                log_info("af", "dbg claf=%d dist=%d on=%d off=%d fz=%d nearL=%.0f nearR=%.0f go=%d right=%d vel=%.1f",
+                    g_Config.m_ClAf, g_Config.m_ClAfDist, g_Config.m_ClAfOn, g_Config.m_ClAfOff,
+                    m_aClients[AfId].m_FreezeEnd, s_AfNearL, s_AfNearR, (int)s_AfGo, (int)s_AfRight, AfP.m_Vel.x);
             }
         }
     }
